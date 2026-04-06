@@ -18,7 +18,8 @@ data class ProfileOverview(
     val level: String, 
     val gamesPlayed: String, 
     val gamesList: List<GameListRow>,
-    val barStats: List<String>
+    val barStats: List<String>,
+    val avatarUrl: String?
 )
 
 class ProfileRepository {
@@ -27,8 +28,17 @@ class ProfileRepository {
         val initialResp = NetworkClient.client.get("https://psnprofiles.com/")
         val doc1: Document = Ksoup.parse(initialResp.bodyAsText())
         val userMenuNode = doc1.selectFirst("a.dropdown-toggle")
+        if (userMenuNode == null) {
+            // If the user menu is missing, we might have been logged out or the parsing failed
+            val loginButton = doc1.selectFirst("a[href=/login]")
+            if (loginButton != null) {
+                 println("DEBUG: User is definitely logged out.")
+            }
+        }
         val profileUrl = userMenuNode?.attr("href") ?: "/Unknown"
         val username = userMenuNode?.text()?.trim() ?: "Unknown User"
+        var avatarUrl = userMenuNode?.selectFirst("img")?.attr("src")
+        if (avatarUrl?.startsWith("/") == true) avatarUrl = "https://psnprofiles.com$avatarUrl"
         
         // Fetch actual profile
         val profileResp = NetworkClient.client.get("https://psnprofiles.com$profileUrl")
@@ -55,6 +65,8 @@ class ProfileRepository {
             val titleNode = row.selectFirst("a.title")
             if (titleNode != null) {
                 val title = titleNode.text()
+                if (title.contains("more games", ignoreCase = true)) continue
+                
                 val href = titleNode.attr("href") // e.g. /trophies/1234-game
                 val platforms = row.select("span.platform").joinToString(" ") { it.text() }
                 val progress = row.selectFirst("div.progress-bar span")?.text() ?: "0%"
@@ -92,7 +104,8 @@ class ProfileRepository {
             level = "1",
             gamesPlayed = games.size.toString(),
             gamesList = games,
-            barStats = parsedStats
+            barStats = parsedStats,
+            avatarUrl = avatarUrl
         )
     }
 }

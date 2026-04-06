@@ -15,8 +15,10 @@ iosApp/iosApp.xcodeproj/*
 cmdline-tools.zip
 error.txt
 err.txt
-guide.html
 kmp.zip
 build_out.txt
 
+guide.html
 guide_files/
+game.html
+game_files/

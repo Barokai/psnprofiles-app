@@ -12,6 +12,9 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.background
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -23,6 +26,7 @@ import repository.GuideNode
 import repository.GuideRepository
 
 class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : Screen {
+    @OptIn(androidx.compose.material.ExperimentalMaterialApi::class)
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.current
@@ -31,10 +35,21 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
         var showTocMenu by remember { mutableStateOf(false) }
         val listState = rememberLazyListState()
         val coroutineScope = rememberCoroutineScope()
+        var isRefreshing by remember { mutableStateOf(false) }
         
-        
-        LaunchedEffect(Unit) {
+        suspend fun fetchGuideData() {
+            isRefreshing = true
             guideNodes = GuideRepository.fetchGuide(guideUrl)
+            isRefreshing = false
+        }
+
+        val pullRefreshState = rememberPullRefreshState(
+            refreshing = isRefreshing,
+            onRefresh = { coroutineScope.launch { fetchGuideData() } }
+        )
+
+        LaunchedEffect(Unit) {
+            fetchGuideData()
         }
 
         // Native offline-ready data filtering mapped precisely to the local toggle
@@ -120,7 +135,8 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
             }
         }
 
-        Column(Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().pullRefresh(pullRefreshState)) {
+            Column(Modifier.fillMaxSize()) {
             TopAppBar(
                 title = { Text(
                     text = appBarTitle,
@@ -208,5 +224,11 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
                 }
             }
         }
+        PullRefreshIndicator(
+            refreshing = isRefreshing,
+            state = pullRefreshState,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
+    }
     }
 }
