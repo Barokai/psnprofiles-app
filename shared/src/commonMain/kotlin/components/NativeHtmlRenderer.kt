@@ -64,7 +64,7 @@ fun LazyListScope.renderGuideNodes(nodes: List<GuideNode>, onAnchorClick: (Strin
                                 node.stats.forEach { stat ->
                                     val parsedColor = try { Color(stat.colorHex.removePrefix("#").toLong(16) or 0xFF000000) } catch (e: Exception) { Color.Gray }
                                     Column(
-                                        modifier = Modifier.background(parsedColor).padding(horizontal = 24.dp, vertical = 8.dp),
+                                        modifier = Modifier.weight(1f).background(parsedColor).padding(vertical = 8.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
                                         Text(stat.top, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.h6)
@@ -161,6 +161,42 @@ fun LazyListScope.renderGuideNodes(nodes: List<GuideNode>, onAnchorClick: (Strin
                                 Divider(color = Color(0xFFE0E0E0))
                                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                                     StaticGuideNodes(node.details, onAnchorClick)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            is GuideNode.Table -> {
+                item {
+                    val backgroundColor = if (node.isInvisible) Color.Transparent else Color(0xFFF9F9F9)
+                    val borderColor = if (node.isInvisible) Color.Transparent else Color(0xFFEEEEEE)
+                    val elevation = if (node.isInvisible) 0.dp else 0.dp // matches card style
+                    
+                    androidx.compose.material.Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        elevation = elevation,
+                        backgroundColor = backgroundColor,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                        border = if (node.isInvisible) null else BorderStroke(1.dp, borderColor)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            node.rows.forEachIndexed { rowIndex, row ->
+                                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    row.forEachIndexed { cellIndex, cell ->
+                                        val weight = (cell.widthPercent?.toFloat() ?: 100f) / 100f
+                                        Column(
+                                            modifier = Modifier.weight(weight).padding(8.dp)
+                                        ) {
+                                            StaticGuideNodes(cell.content, onAnchorClick)
+                                        }
+                                        if (cellIndex < row.size - 1 && !node.isInvisible) {
+                                            Box(modifier = Modifier.width(1.dp).height(intrinsicSize = IntrinsicSize.Max).background(Color(0xFFEEEEEE)))
+                                        }
+                                    }
+                                }
+                                if (rowIndex < node.rows.size - 1 && !node.isInvisible) {
+                                    Divider(color = Color(0xFFEEEEEE), thickness = 1.dp)
                                 }
                             }
                         }
@@ -347,6 +383,52 @@ fun StaticGuideNode(node: GuideNode, onAnchorClick: (String) -> Unit) {
                             }
                         }
                         if (chunk.size == 1) Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        is GuideNode.GenericBox -> {
+            androidx.compose.material.Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                elevation = 1.dp,
+                backgroundColor = Color(0xFFFDFDFD),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    StaticGuideNodes(node.details, onAnchorClick)
+                }
+            }
+        }
+        is GuideNode.Table -> {
+            val backgroundColor = if (node.isInvisible) Color.Transparent else Color(0xFFF9F9F9)
+            val borderColor = if (node.isInvisible) Color.Transparent else Color(0xFFEEEEEE)
+            
+            androidx.compose.material.Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                elevation = 0.dp,
+                backgroundColor = backgroundColor,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                border = if (node.isInvisible) null else BorderStroke(1.dp, borderColor)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    node.rows.forEachIndexed { rowIndex, row ->
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            row.forEachIndexed { cellIndex, cell ->
+                                val weight = (cell.widthPercent?.toFloat() ?: 100f) / 100f
+                                Column(
+                                    modifier = Modifier.weight(weight).padding(8.dp)
+                                ) {
+                                    StaticGuideNodes(cell.content, onAnchorClick)
+                                }
+                                if (cellIndex < row.size - 1 && !node.isInvisible) {
+                                    Box(modifier = Modifier.width(1.dp).height(intrinsicSize = IntrinsicSize.Max).background(Color(0xFFEEEEEE)))
+                                }
+                            }
+                        }
+                        if (rowIndex < node.rows.size - 1 && !node.isInvisible) {
+                            Divider(color = Color(0xFFEEEEEE), thickness = 1.dp)
+                        }
                     }
                 }
             }

@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import components.renderGuideNodes
+import components.SystemAppearance
 import kotlinx.coroutines.launch
 import repository.GuideNode
 import repository.GuideRepository
@@ -36,6 +37,8 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
         val listState = rememberLazyListState()
         val coroutineScope = rememberCoroutineScope()
         var isRefreshing by remember { mutableStateOf(false) }
+
+        SystemAppearance(MaterialTheme.colors.primary)
         
         suspend fun fetchGuideData() {
             isRefreshing = true

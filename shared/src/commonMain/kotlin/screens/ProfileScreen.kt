@@ -2,6 +2,7 @@ package screens
 
 import ProfileOverview
 import ProfileRepository
+import components.SystemAppearance
 import kotlinx.coroutines.launch
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -43,6 +44,8 @@ class ProfileScreen : Screen {
         val coroutineScope = rememberCoroutineScope()
         val uriHandler = LocalUriHandler.current
 
+        SystemAppearance(MaterialTheme.colors.primary)
+
         val pullRefreshState = rememberPullRefreshState(
             refreshing = isRefreshing,
             onRefresh = {
@@ -59,6 +62,8 @@ class ProfileScreen : Screen {
             profile = ProfileRepository().fetchProfileOverview()
             isRefreshing = false
         }
+
+        SystemAppearance(MaterialTheme.colors.primary)
 
         Column(Modifier.fillMaxWidth()) {
             TopAppBar(

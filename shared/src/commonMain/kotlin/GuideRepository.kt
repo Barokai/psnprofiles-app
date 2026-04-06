@@ -42,7 +42,8 @@ sealed class GuideNode {
 
     data class RoadmapTrophy(val name: String, val desc: String, val rarityLabel: String, val anchor: String, val isEarned: Boolean)
     data class RoadmapGrid(val trophies: List<RoadmapTrophy>) : GuideNode()
-
+    data class TableCell(val content: List<GuideNode>, val widthPercent: Int?)
+    data class Table(val rows: List<List<TableCell>>, val isInvisible: Boolean) : GuideNode()
     data class GuideTitle(val title: String) : GuideNode()
 }
 
@@ -111,7 +112,7 @@ object GuideRepository {
                 var trophyImg = trophyImgEl?.attr("srcset")
                     ?.split(",")?.firstOrNull()?.trim()?.split(" ")?.firstOrNull() ?: ""
                 if (trophyImg.isEmpty()) trophyImg = trophyImgEl?.attr("src") ?: ""
-                if (!trophyImg.startsWith("http")) trophyImg = "" // skip local paths
+                trophyImg = resolveUrl(trophyImg)
                 val isEarned = trophyImgEl?.hasClass("earned") == true
 
                 // Name and description from the wide td (width: 100%)
@@ -131,12 +132,14 @@ object GuideRepository {
                 val rarityLabel = rarityImg?.attr("alt") ?: "Bronze"
 
                 // Parse remaining content (guide text, images, videos) as detail nodes
-                // Parse `innerDiv` because tags and guide text usually live outside `div.box.section-holder` 
-                // but still inside `innerDiv` representing this specific trophy.
+                // Scoping fix: search ONLY within this box or immediate siblings after the zebra table if they aren't another box
                 zebraTable.remove() 
                 val details = mutableListOf<GuideNode>()
-                parseNestedParagraphs(innerDiv!!, details, "")
-
+                parseNestedParagraphs(box, details, "") // Use the 'box' instead of 'innerDiv' to avoid duplicating section text
+                
+                // If there's content after the box but before the next section-holder, we might need it too.
+                // But for now, scoping to the box is much safer than the whole section.
+                
                 extractedNodes.add(GuideNode.TrophyGroup(
                     name = trophyName,
                     description = trophyDesc,
@@ -247,6 +250,15 @@ object GuideRepository {
         return extractedNodes
     }
 
+    private fun resolveUrl(url: String): String {
+        if (url.isEmpty()) return ""
+        if (url.startsWith("http")) return url
+        if (url.startsWith("/")) return "https://psnprofiles.com$url"
+        // Handle saved pages or relative links (e.g. ./brotato_files/...)
+        if (url.contains("_files/")) return "https://psnprofiles.com/guide/18933-brotato-trophy-guide/$url" 
+        return "https://psnprofiles.com/$url"
+    }
+
     private fun parseNestedParagraphs(parent: Element, list: MutableList<GuideNode>, titleStrToSkip: String = "") {
         val currentSpans = mutableListOf<TextSpan>()
 
@@ -301,12 +313,33 @@ object GuideRepository {
                 }
 
                 when (tag) {
-                    "br", "p", "div", "li", "td", "tr", "table", "h1", "h2", "h3", "h4", "h5", "ul", "ol" -> {
+                    "br", "p", "div", "li", "h1", "h2", "h3", "h4", "h5", "ul", "ol" -> {
                         flushSpans()
                         val bold = isBoldCtx || tag == "b" || tag == "strong" || tag.startsWith("h")
                         val italic = isItalicCtx || tag == "i" || tag == "em"
                         node.childNodes().forEach { traverse(it, bold, italic, linkAnchor) }
                         flushSpans()
+                    }
+                    "table" -> {
+                        flushSpans()
+                        val rows = mutableListOf<List<GuideNode.TableCell>>()
+                        val isInvisible = node.hasClass("invisible")
+                        node.select("tr").forEach { tr ->
+                            val cells = mutableListOf<GuideNode.TableCell>()
+                            tr.select("th, td").forEach { cell ->
+                                val cellDetails = mutableListOf<GuideNode>()
+                                parseNestedParagraphs(cell, cellDetails, "")
+                                
+                                val style = cell.attr("style")
+                                val widthMatch = Regex("width:\\s*(\\d+)%").find(style)
+                                val widthPercent = widthMatch?.groupValues?.get(1)?.toIntOrNull()
+                                
+                                cells.add(GuideNode.TableCell(cellDetails, widthPercent))
+                            }
+                            if (cells.isNotEmpty()) rows.add(cells)
+                        }
+                        if (rows.isNotEmpty()) list.add(GuideNode.Table(rows, isInvisible))
+                        return 
                     }
                     "span" -> {
                         if (node.hasClass("tag")) {
@@ -334,16 +367,16 @@ object GuideRepository {
                             if (altText.isNotEmpty()) {
                                 currentSpans.add(TextSpan("[$altText]", isBoldCtx, isItalicCtx, linkAnchor))
                             }
-                        } else {
-                            flushSpans()
-                            var src = node.attr("src")
-                            if (src.startsWith("/")) src = "https://psnprofiles.com$src"
-                            if (src.contains("youtube.com/vi/")) {
-                                list.add(GuideNode.YouTubeNode(src.substringAfter("vi/").substringBefore("/")))
-                            } else if (!node.hasClass("trophy") && src.startsWith("http")) {
-                                list.add(GuideNode.ImageNode(src))
+                            } else {
+                                flushSpans()
+                                var src = node.attr("src")
+                                src = resolveUrl(src)
+                                if (src.contains("youtube.com/vi/")) {
+                                    list.add(GuideNode.YouTubeNode(src.substringAfter("vi/").substringBefore("/")))
+                                } else if (!node.hasClass("trophy") && src.isNotEmpty()) {
+                                    list.add(GuideNode.ImageNode(src))
+                                }
                             }
-                        }
                     }
                     "iframe" -> {
                         flushSpans()

@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import com.fleeksoft.ksoup.Ksoup
+import components.SystemAppearance
 import io.kamel.image.KamelImage
 import io.kamel.image.asyncPainterResource
 import io.ktor.client.request.get
@@ -68,6 +69,8 @@ class GameTrophiesScreen(private val gameTitle: String, private val gameHref: St
         var isRefreshing by remember { mutableStateOf(false) }
         val listState = rememberLazyListState()
         val coroutineScope = rememberCoroutineScope()
+
+        SystemAppearance(MaterialTheme.colors.primary)
         
         suspend fun fetchGameData() {
             isRefreshing = true
