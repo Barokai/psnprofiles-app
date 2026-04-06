@@ -10,7 +10,9 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.List
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.background
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -38,12 +40,31 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
         // Native offline-ready data filtering mapped precisely to the local toggle
         val filteredNodes = remember(guideNodes, localHideEarned) {
             if (localHideEarned) {
-                guideNodes?.filter { node ->
-                    if (node is GuideNode.TrophyGroup) {
-                        val cleanName = node.name.split("-")[0].trim()
-                        !earnedTrophyNames.any { cleanName.contains(it) || it.contains(cleanName) }
-                    } else {
-                        true
+                guideNodes?.mapNotNull { node ->
+                    when (node) {
+                        is GuideNode.TrophyGroup -> {
+                            val cleanName = node.name.split("-")[0].trim()
+                            val isEarned = earnedTrophyNames.any { cleanName.contains(it) || it.contains(cleanName) } || node.isEarned
+                            if (isEarned) null else node
+                        }
+                        is GuideNode.TableOfContents -> {
+                            val filteredItems = node.items.filter { item ->
+                                val cleanName = item.name.split("-")[0].trim()
+                                val isEarned = earnedTrophyNames.any { cleanName.contains(it) || it.contains(cleanName) } || item.isEarned
+                                !isEarned
+                            }
+                            if (filteredItems.isNotEmpty()) GuideNode.TableOfContents(filteredItems) else null
+                        }
+                        is GuideNode.RoadmapGrid -> {
+                            val filteredTrophies = node.trophies.filter { item ->
+                                val cleanName = item.name.split("-")[0].trim()
+                                val isEarned = earnedTrophyNames.any { cleanName.contains(it) || it.contains(cleanName) } || item.isEarned
+                                !isEarned
+                            }
+                            if (filteredTrophies.isNotEmpty()) GuideNode.RoadmapGrid(filteredTrophies) else null
+                        }
+                        // GuideInfoBox categories could be filtered here too, but let's keep it simple
+                        else -> node
                     }
                 }
             } else {
@@ -51,9 +72,16 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
             }
         }
 
+        val docTitleNode = guideNodes?.firstOrNull { it is GuideNode.GuideTitle } as? GuideNode.GuideTitle
+        val appBarTitle = docTitleNode?.title ?: "Native Trophy Guide"
+
         Column(Modifier.fillMaxSize()) {
             TopAppBar(
-                title = { Text("Native Trophy Guide") },
+                title = { Text(
+                    text = appBarTitle,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                ) },
                 navigationIcon = {
                     IconButton(onClick = { navigator?.pop() }) {
                         Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
@@ -68,9 +96,21 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
                             expanded = showTocMenu,
                             onDismissRequest = { showTocMenu = false }
                         ) {
-                            tocNode.items.forEach { tocTitle ->
-                                DropdownMenuItem(onClick = { showTocMenu = false }) {
-                                    Text(tocTitle, style = MaterialTheme.typography.body2)
+                            tocNode.items.forEach { tocItem ->
+                                // Optional filter inside dropdown if we wanted to mirror the main list, 
+                                // but we already filtered `tocNode` locally so this represents the user's choice.
+                                val rColor = try { Color(tocItem.colorHex.removePrefix("#").toLong(16) or 0xFF000000) } catch(e:Exception) { Color.Gray }
+                                val txtColor = if (tocItem.isEarned) Color(0xFF4CAF50) else MaterialTheme.colors.onSurface
+                                val txtStyle = if (tocItem.isEarned) androidx.compose.ui.text.style.TextDecoration.LineThrough else androidx.compose.ui.text.style.TextDecoration.None
+                                DropdownMenuItem(onClick = { 
+                                    showTocMenu = false
+                                    // if we passed anchor click lambda here we could scroll to it!
+                                }) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(8.dp).background(rColor, androidx.compose.foundation.shape.CircleShape))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(tocItem.name, style = MaterialTheme.typography.body2.copy(textDecoration = txtStyle), color = txtColor)
+                                    }
                                 }
                             }
                         }

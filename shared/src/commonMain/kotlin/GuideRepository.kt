@@ -16,10 +16,14 @@ sealed class GuideNode {
     data class ImageNode(val url: String) : GuideNode()
     data class YouTubeNode(val videoId: String) : GuideNode()
     data class SectionHeader(val title: String) : GuideNode()
+    data class TagNode(val text: String, val colorHex: String) : GuideNode()
 
     data class StatTag(val top: String, val bottom: String, val colorHex: String)
-    data class CategoryGroup(val name: String, val colorHex: String, val trophies: List<String>)
+    data class CategoryTrophy(val name: String, val anchor: String, val rarity: String, val isEarned: Boolean)
+    data class CategoryGroup(val name: String, val colorHex: String, val trophies: List<CategoryTrophy>)
     data class GuideInfoBox(val stats: List<StatTag>, val categories: List<CategoryGroup>) : GuideNode()
+
+    data class GenericBox(val details: List<GuideNode>) : GuideNode()
 
     data class TrophyGroup(
         val name: String,
@@ -32,10 +36,13 @@ sealed class GuideNode {
         val details: List<GuideNode>
     ) : GuideNode()
 
-    data class TableOfContents(val items: List<String>) : GuideNode()
+    data class TocItem(val name: String, val anchor: String, val rarity: String, val isEarned: Boolean, val colorHex: String)
+    data class TableOfContents(val items: List<TocItem>) : GuideNode()
 
     data class RoadmapTrophy(val name: String, val desc: String, val rarityLabel: String, val anchor: String, val isEarned: Boolean)
     data class RoadmapGrid(val trophies: List<RoadmapTrophy>) : GuideNode()
+
+    data class GuideTitle(val title: String) : GuideNode()
 }
 
 object GuideRepository {
@@ -45,16 +52,42 @@ object GuideRepository {
         val doc: Document = Ksoup.parse(response.bodyAsText())
         val extractedNodes = mutableListOf<GuideNode>()
 
+        val docTitle = doc.selectFirst("title")?.text()?.trim() ?: "Trophy Guide"
+        extractedNodes.add(GuideNode.GuideTitle(docTitle))
+
         // 1. Table of Contents (lives in #TOCWrapper, outside SectionContainers)
         val tocWrapper = doc.selectFirst("#TOCWrapper")
         if (tocWrapper != null) {
-            val tocItems = tocWrapper.select("li a").map { it.text().trim() }.filter { it.isNotEmpty() }
+            val tocItems = mutableListOf<GuideNode.TocItem>()
+            tocWrapper.select("li a").forEach { aNode ->
+                val name = aNode.text().trim()
+                if (name.isNotEmpty()) {
+                    val href = aNode.attr("href")
+                    val anchor = if (href.contains("#")) href.substringAfterLast("#") else ""
+                    val classes = aNode.attr("class").lowercase()
+                    val rarity = when {
+                        classes.contains("platinum") -> "Platinum"
+                        classes.contains("gold") -> "Gold"
+                        classes.contains("silver") -> "Silver"
+                        classes.contains("bronze") -> "Bronze"
+                        else -> "Bronze"
+                    }
+                    val colorHex = when (rarity) {
+                        "Platinum" -> "#B0BEC5"
+                        "Gold" -> "#FFD700"
+                        "Silver" -> "#C0C0C0"
+                        else -> "#CD7F32"
+                    }
+                    val isEarned = aNode.parent()?.hasClass("earned") == true
+                    tocItems.add(GuideNode.TocItem(name, anchor, rarity, isEarned, colorHex))
+                }
+            }
             if (tocItems.isNotEmpty()) extractedNodes.add(GuideNode.TableOfContents(tocItems))
         }
 
         // 2. Walk only top-level SectionContainers (avoids processing nested trophy boxes twice)
         val sections = doc.select("div[id^=SectionContainer]")
-        for (section in sections) {
+        sectionLoop@ for (section in sections) {
             // Section heading: comes from the direct child div's .title > h3
             val innerDiv = section.children().firstOrNull()
             val sectionH3 = innerDiv?.selectFirst("div.title h3, div.title h4")?.text()?.trim() ?: ""
@@ -63,6 +96,7 @@ object GuideRepository {
             }
 
             // Trophy sections: each trophy is a div.box.section-holder containing table.zebra
+            var isTrophyGroup = false
             val trophyBoxes = innerDiv?.select("div.box.section-holder") ?: emptyList()
             for (box in trophyBoxes) {
                 val zebraTable = box.selectFirst("table.zebra") ?: continue
@@ -94,12 +128,12 @@ object GuideRepository {
                 val rarityImg = dataRow.selectFirst("img[alt=Platinum], img[alt=Gold], img[alt=Silver], img[alt=Bronze]")
                 val rarityLabel = rarityImg?.attr("alt") ?: "Bronze"
 
-                // Remove zebra table from box so parseNestedParagraphs doesn't re-render it
-                zebraTable.remove()
-
                 // Parse remaining content (guide text, images, videos) as detail nodes
+                // Parse `innerDiv` because tags and guide text usually live outside `div.box.section-holder` 
+                // but still inside `innerDiv` representing this specific trophy.
+                zebraTable.remove() 
                 val details = mutableListOf<GuideNode>()
-                parseNestedParagraphs(box, details, "")
+                parseNestedParagraphs(innerDiv!!, details, "")
 
                 extractedNodes.add(GuideNode.TrophyGroup(
                     name = trophyName,
@@ -111,7 +145,9 @@ object GuideRepository {
                     isEarned = isEarned,
                     details = details
                 ))
+                isTrophyGroup = true
             }
+            if (isTrophyGroup) continue@sectionLoop
 
             // Roadmap box: div.box.roadmap containing roadmapStep divs
             val roadmapBox = innerDiv?.selectFirst("div.box.roadmap")
@@ -125,7 +161,11 @@ object GuideRepository {
                         extractedNodes.add(GuideNode.SectionHeader(stageH1.text().trim()))
                         stageH1.remove()
                     }
-                    parseNestedParagraphs(frView, extractedNodes, "")
+                    val currentDetails = mutableListOf<GuideNode>()
+                    parseNestedParagraphs(frView, currentDetails, "")
+                    if (currentDetails.isNotEmpty()) {
+                        extractedNodes.add(GuideNode.GenericBox(currentDetails))
+                    }
                 }
                 continue
             }
@@ -158,7 +198,31 @@ object GuideRepository {
                             catColor = style.substringAfter("background-color:").substringBefore(";").trim()
                         } else if (catTag.hasClass("Status")) catColor = "#d78413"
                         else if (catTag.hasClass("Collectable")) catColor = "#a34544"
-                        val trophies = tr.select("a.icon-sprite").map { it.text().trim() }
+                        val trophies = mutableListOf<GuideNode.CategoryTrophy>()
+                        tr.select("a.icon-sprite").forEach { aNode ->
+                            val tName = aNode.text().trim()
+                            if (tName.isNotEmpty()) {
+                                val href = aNode.attr("href")
+                                val anchor = if (href.contains("#")) href.substringAfterLast("#") else ""
+                                val classes = aNode.attr("class").lowercase()
+                                val rarity = when {
+                                    classes.contains("platinum") -> "Platinum"
+                                    classes.contains("gold") -> "Gold"
+                                    classes.contains("silver") -> "Silver"
+                                    classes.contains("bronze") -> "Bronze"
+                                    else -> "Bronze"
+                                }
+                                val rColorHex = when (rarity) {
+                                    "Platinum" -> "#B0BEC5"
+                                    "Gold" -> "#FFD700"
+                                    "Silver" -> "#C0C0C0"
+                                    else -> "#CD7F32"
+                                }
+                                // Category list items are usually inside a <nobr> or just straight <a>. It might be inside a parent that has 'earned'.
+                                val isEarned = aNode.parent()?.hasClass("earned") == true || aNode.parent()?.parent()?.hasClass("earned") == true
+                                trophies.add(GuideNode.CategoryTrophy(tName, anchor, rarity, isEarned))
+                            }
+                        }
                         categories.add(GuideNode.CategoryGroup(catName, catColor, trophies))
                     }
                 }
@@ -169,7 +233,11 @@ object GuideRepository {
             // Generic text sections (Tips & Strategies, etc.)
             val textBoxes = innerDiv?.select("div.box:not(.section-holder):not(.roadmap)") ?: emptyList()
             for (box in textBoxes) {
-                parseNestedParagraphs(box, extractedNodes, "")
+                val details = mutableListOf<GuideNode>()
+                parseNestedParagraphs(box, details, "")
+                if (details.isNotEmpty()) {
+                    extractedNodes.add(GuideNode.GenericBox(details))
+                }
             }
         }
 
@@ -181,7 +249,10 @@ object GuideRepository {
 
         fun flushSpans() {
             if (currentSpans.isNotEmpty()) {
-                list.add(GuideNode.Paragraph(currentSpans.toList()))
+                val fullTxt = currentSpans.joinToString("") { it.text }
+                if (fullTxt.isNotBlank()) {
+                    list.add(GuideNode.Paragraph(currentSpans.toList()))
+                }
                 currentSpans.clear()
             }
         }
@@ -228,14 +299,41 @@ object GuideRepository {
                         node.childNodes().forEach { traverse(it, bold, italic) }
                         flushSpans()
                     }
+                    "span" -> {
+                        if (node.hasClass("tag")) {
+                            flushSpans()
+                            val tagText = node.text().trim()
+                            var tagColor = "#666666"
+                            val style = node.attr("style")
+                            if (style.contains("background-color:")) {
+                                tagColor = style.substringAfter("background-color:").substringBefore(";").trim()
+                            } else if (node.hasClass("Status")) tagColor = "#d78413"
+                            else if (node.hasClass("Collectable")) tagColor = "#a34544"
+                            
+                            if (tagText.isNotEmpty()) {
+                                list.add(GuideNode.TagNode(tagText, tagColor))
+                            }
+                        } else {
+                            val bold = isBoldCtx || node.hasClass("bold")
+                            val italic = isItalicCtx || node.hasClass("italic")
+                            node.childNodes().forEach { traverse(it, bold, italic) }
+                        }
+                    }
                     "img" -> {
-                        flushSpans()
-                        var src = node.attr("src")
-                        if (src.startsWith("/")) src = "https://psnprofiles.com$src"
-                        if (src.contains("youtube.com/vi/")) {
-                            list.add(GuideNode.YouTubeNode(src.substringAfter("vi/").substringBefore("/")))
-                        } else if (!node.hasClass("icon-sprite") && !node.hasClass("trophy") && !node.hasClass("input") && src.startsWith("http")) {
-                            list.add(GuideNode.ImageNode(src))
+                        if (node.hasClass("input") || node.hasClass("icon-sprite")) {
+                            val altText = node.attr("alt")
+                            if (altText.isNotEmpty()) {
+                                currentSpans.add(TextSpan("[$altText]", isBoldCtx, isItalicCtx))
+                            }
+                        } else {
+                            flushSpans()
+                            var src = node.attr("src")
+                            if (src.startsWith("/")) src = "https://psnprofiles.com$src"
+                            if (src.contains("youtube.com/vi/")) {
+                                list.add(GuideNode.YouTubeNode(src.substringAfter("vi/").substringBefore("/")))
+                            } else if (!node.hasClass("trophy") && src.startsWith("http")) {
+                                list.add(GuideNode.ImageNode(src))
+                            }
                         }
                     }
                     "iframe" -> {
