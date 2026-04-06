@@ -1,0 +1,21 @@
+
+buildscript {
+    repositories { mavenCentral() }
+    dependencies { classpath("org.jsoup:jsoup:1.15.4") }
+}
+tasks.register("runJsoupTest") {
+    doLast {
+        val doc = org.jsoup.Jsoup.connect("https://psnprofiles.com/guide/15561-goat-simulator-3-trophy-guide").get()
+        val sections = doc.select("div[id^=SectionContainer]")
+        val c2 = sections[4] 
+        val innerDiv = c2.children().firstOrNull()
+        val zebra = innerDiv?.selectFirst("table.zebra")
+        println("Has zebra: ${zebra != null}")
+        zebra?.parent()?.remove()
+        val tags = innerDiv?.select("span.tag")
+        println("Tags size: ${tags?.size}")
+        val paragraphs = innerDiv?.select("p")
+        println("P size: ${paragraphs?.size}")
+    }
+}
+

@@ -63,6 +63,17 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
                             }
                             if (filteredTrophies.isNotEmpty()) GuideNode.RoadmapGrid(filteredTrophies) else null
                         }
+                        is GuideNode.GuideInfoBox -> {
+                            val filteredCategories = node.categories.mapNotNull { cat ->
+                                val filteredTrophies = cat.trophies.filter { item ->
+                                    val cleanName = item.name.split("-")[0].trim()
+                                    val isEarned = earnedTrophyNames.any { cleanName.contains(it) || it.contains(cleanName) } || item.isEarned
+                                    !isEarned
+                                }
+                                if (filteredTrophies.isNotEmpty()) cat.copy(trophies = filteredTrophies) else null
+                            }
+                            node.copy(categories = filteredCategories)
+                        }
                         is GuideNode.GenericBox -> {
                             val filteredDetails = filterNodes(node.details)
                             if (filteredDetails.isNotEmpty()) GuideNode.GenericBox(filteredDetails) else null
@@ -91,9 +102,9 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
             filteredNodes?.forEach { node ->
                 if (node !is GuideNode.TableOfContents) {
                     when (node) {
-                        is GuideNode.TrophyGroup -> map[node.anchorId] = idx
-                        is GuideNode.SectionHeader -> map[node.anchorId] = idx
-                        is GuideNode.GuideInfoBox -> map[node.anchorId] = idx
+                        is GuideNode.TrophyGroup -> if (!map.containsKey(node.anchorId)) map[node.anchorId] = idx
+                        is GuideNode.SectionHeader -> if (!map.containsKey(node.anchorId)) map[node.anchorId] = idx
+                        is GuideNode.GuideInfoBox -> if (!map.containsKey(node.anchorId)) map[node.anchorId] = idx
                         else -> {}
                     }
                     idx++
