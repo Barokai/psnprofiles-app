@@ -1,42 +1,30 @@
 package screens
 
+import AppSettings
 import NetworkClient
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
-import androidx.compose.material.TopAppBar
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import com.fleeksoft.ksoup.Ksoup
-import io.ktor.client.request.get
-import io.ktor.client.statement.bodyAsText
 import io.kamel.image.KamelImage
 import io.kamel.image.asyncPainterResource
-import androidx.compose.foundation.layout.size
-import AppSettings
-import androidx.compose.material.Switch
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.ui.Alignment
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 
-data class TrophyRow(val name: String, val description: String, val earned: Boolean, val timestamp: String?, val imageUrl: String?)
+data class TrophyRow(val name: String, val description: String, val earned: Boolean, val timestamp: String?, val imageUrl: String?, val rarity: String)
 
 class GameTrophiesScreen(private val gameTitle: String, private val gameHref: String) : Screen {
     @Composable
@@ -61,14 +49,17 @@ class GameTrophiesScreen(private val gameTitle: String, private val gameHref: St
                 val titleNode = row.selectFirst("a.title")
                 if (titleNode != null) {
                     val name = titleNode.text()
-                    // Descriptions are usually in the td child right after title, or same container
                     val desc = row.selectFirst("td")?.text()?.substringAfter(name)?.trim() ?: "" 
                     val definitelyEarned = row.hasClass("completed")
                     val timestamp = if (definitelyEarned) row.selectFirst(".typo-top-date nobr")?.text()?.trim() else null
-                    var imageUrl = row.selectFirst("picture.trophy img")?.attr("src")
-                    if (imageUrl != null && imageUrl.startsWith("/")) imageUrl = "https://psnprofiles.com$imageUrl"
                     
-                    tempTrophies.add(TrophyRow(name, desc, definitelyEarned, timestamp, imageUrl))
+                    var imageUrl = row.selectFirst("picture.trophy img, img.trophy")?.attr("src") ?: ""
+                    if (imageUrl.startsWith("/")) imageUrl = "https://psnprofiles.com$imageUrl"
+                    
+                    val rarityNode = row.selectFirst("img[title=Bronze], img[title=Silver], img[title=Gold], img[title=Platinum]")
+                    val rarityStr = rarityNode?.attr("title") ?: "Unknown"
+
+                    tempTrophies.add(TrophyRow(name, desc, definitelyEarned, timestamp, imageUrl, rarityStr))
                 }
             }
             trophies = tempTrophies
@@ -86,7 +77,6 @@ class GameTrophiesScreen(private val gameTitle: String, private val gameHref: St
                 }
             )
             
-            // Localized toggle filter array
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -101,11 +91,11 @@ class GameTrophiesScreen(private val gameTitle: String, private val gameHref: St
             
             if (filteredTrophies != null) {
                 if (guideHref != null) {
-                    androidx.compose.material.Button(
+                    Button(
                         onClick = {
                             navigator?.push(GuideScreen(guideHref!!, trophies!!.filter { it.earned }.map { it.name }))
                         },
-                        modifier = Modifier.fillMaxWidth().padding(16.dp)
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                     ) {
                         Text("View Trophy Guide")
                     }
@@ -113,8 +103,8 @@ class GameTrophiesScreen(private val gameTitle: String, private val gameHref: St
 
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     items(filteredTrophies) { trophy ->
-                        Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                            if (trophy.imageUrl != null) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (trophy.imageUrl != null && trophy.imageUrl.startsWith("http")) {
                                 KamelImage(
                                     resource = asyncPainterResource(data = trophy.imageUrl),
                                     contentDescription = "Trophy Image",
@@ -123,27 +113,43 @@ class GameTrophiesScreen(private val gameTitle: String, private val gameHref: St
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(trophy.name, style = MaterialTheme.typography.subtitle1, color = if (trophy.earned) MaterialTheme.colors.primary else MaterialTheme.colors.onSurface)
-                                Text(trophy.description, style = MaterialTheme.typography.caption)
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                                    val rColor = when (trophy.rarity) {
+                                        "Bronze" -> Color(0xFFCD7F32)
+                                        "Silver" -> Color(0xFFC0C0C0)
+                                        "Gold" -> Color(0xFFFFD700)
+                                        "Platinum" -> Color(0xFFE5E4E2)
+                                        else -> Color.Transparent
+                                    }
+                                    if (rColor != Color.Transparent) {
+                                        Box(modifier = Modifier.size(10.dp).background(rColor, shape = CircleShape))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text(trophy.description, style = MaterialTheme.typography.caption)
+                                }
                             }
-                            androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                            Column(horizontalAlignment = Alignment.End) {
                                 Text(
                                     text = if (trophy.earned) "EARNED" else "Lock",
-                                    color = if (trophy.earned) androidx.compose.ui.graphics.Color(0xFF4CAF50) else androidx.compose.ui.graphics.Color.Gray,
+                                    color = if (trophy.earned) Color(0xFF4CAF50) else Color.Gray,
                                     style = MaterialTheme.typography.overline
                                 )
                                 if (trophy.timestamp != null) {
                                     Text(
                                         text = trophy.timestamp, 
                                         style = MaterialTheme.typography.caption,
-                                        color = androidx.compose.ui.graphics.Color.Gray
+                                        color = Color.Gray
                                     )
                                 }
                             }
                         }
+                        Divider(startIndent = 16.dp)
                     }
                 }
             } else {
-                Text("Loading trophies...", modifier = Modifier.padding(16.dp))
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Loading interactive interface...")
+                }
             }
         }
     }

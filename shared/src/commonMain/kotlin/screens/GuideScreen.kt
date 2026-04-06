@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
-import components.NativeHtmlRenderer
+import components.renderGuideNodes
 import repository.GuideNode
 import repository.GuideRepository
 
@@ -73,9 +73,7 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                     contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
-                    item {
-                        NativeHtmlRenderer(filteredNodes)
-                    }
+                    renderGuideNodes(filteredNodes)
                 }
             } else {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

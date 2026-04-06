@@ -15,7 +15,7 @@ sealed class GuideNode {
     data class Paragraph(val spans: List<TextSpan>, val isHeader: Boolean = false) : GuideNode()
     data class ImageNode(val url: String) : GuideNode()
     data class YouTubeNode(val videoId: String) : GuideNode()
-    data class TrophyGroup(val name: String, val img: String, val details: List<GuideNode>) : GuideNode()
+    data class TrophyGroup(val name: String, val description: String, val img: String, val rarity: String, val details: List<GuideNode>) : GuideNode()
 }
 
 object GuideRepository {
@@ -40,20 +40,25 @@ object GuideRepository {
                 var trophyImg = box.selectFirst(".trophy-image img, img")?.attr("src") ?: ""
                 if (trophyImg.startsWith("/")) trophyImg = "https://psnprofiles.com$trophyImg"
                 
+                val rarityNode = box.selectFirst("img[title=Bronze], img[title=Silver], img[title=Gold], img[title=Platinum]")
+                val rarityStr = rarityNode?.attr("title") ?: "Unknown"
+                
+                val descriptionStr = titleNode?.parent()?.text()?.substringAfter(titleStr)?.trim() ?: ""
+                
                 val detailsList = mutableListOf<GuideNode>()
-                parseNestedParagraphs(box, detailsList)
-                extractedNodes.add(GuideNode.TrophyGroup(name = titleStr, img = trophyImg, details = detailsList))
+                parseNestedParagraphs(box, detailsList, titleStr)
+                extractedNodes.add(GuideNode.TrophyGroup(name = titleStr, description = descriptionStr, img = trophyImg, rarity = rarityStr, details = detailsList))
             } else {
                 if (titleStr.isNotEmpty()) {
                     extractedNodes.add(GuideNode.Paragraph(listOf(TextSpan(titleStr, isBold = true)), isHeader = true))
                 }
-                parseNestedParagraphs(box, extractedNodes)
+                parseNestedParagraphs(box, extractedNodes, titleStr)
             }
         }
         return extractedNodes
     }
 
-    private fun parseNestedParagraphs(parent: Element, list: MutableList<GuideNode>) {
+    private fun parseNestedParagraphs(parent: Element, list: MutableList<GuideNode>, titleStrToSkip: String = "") {
         val currentSpans = mutableListOf<TextSpan>()
         
         fun flushSpans() {
@@ -111,11 +116,13 @@ object GuideRepository {
             }
         }
 
-        // Drop the manual title string previously intercepted so we don't output dupe lines
         parent.childNodes().forEach { 
-            val childTag = (it as? Element)?.tagName()?.lowercase() ?: ""
-            if (!childTag.startsWith("h") && !((it as? Element)?.hasClass("title") == true)) {
-                traverse(it) 
+            val element = it as? Element
+            val isBoxHeader = element != null && (element.hasClass("title") || element.tagName() == "h3" || element.tagName() == "h4")
+            
+            // Only skip the exact title Node sequence to explicitly prevent duplication, but NEVER skip standard guide Headers natively!
+            if (!isBoxHeader || element?.text() != titleStrToSkip) {
+                traverse(it)
             }
         }
         flushSpans()
