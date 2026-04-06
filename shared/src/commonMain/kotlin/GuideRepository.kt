@@ -9,19 +9,19 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import NetworkClient
 
-data class TextSpan(val text: String, val isBold: Boolean = false, val isItalic: Boolean = false)
+data class TextSpan(val text: String, val isBold: Boolean = false, val isItalic: Boolean = false, val linkAnchor: String? = null)
 
 sealed class GuideNode {
     data class Paragraph(val spans: List<TextSpan>, val isHeader: Boolean = false) : GuideNode()
     data class ImageNode(val url: String) : GuideNode()
     data class YouTubeNode(val videoId: String) : GuideNode()
-    data class SectionHeader(val title: String) : GuideNode()
+    data class SectionHeader(val title: String, val anchorId: String) : GuideNode()
     data class TagNode(val text: String, val colorHex: String) : GuideNode()
 
     data class StatTag(val top: String, val bottom: String, val colorHex: String)
     data class CategoryTrophy(val name: String, val anchor: String, val rarity: String, val isEarned: Boolean)
     data class CategoryGroup(val name: String, val colorHex: String, val trophies: List<CategoryTrophy>)
-    data class GuideInfoBox(val stats: List<StatTag>, val categories: List<CategoryGroup>) : GuideNode()
+    data class GuideInfoBox(val stats: List<StatTag>, val categories: List<CategoryGroup>, val anchorId: String) : GuideNode()
 
     data class GenericBox(val details: List<GuideNode>) : GuideNode()
 
@@ -33,6 +33,7 @@ sealed class GuideNode {
         val completionRate: String,
         val rarityText: String,
         val isEarned: Boolean,
+        val anchorId: String,
         val details: List<GuideNode>
     ) : GuideNode()
 
@@ -90,9 +91,10 @@ object GuideRepository {
         sectionLoop@ for (section in sections) {
             // Section heading: comes from the direct child div's .title > h3
             val innerDiv = section.children().firstOrNull()
+            val sectionAnchor = innerDiv?.id() ?: ""
             val sectionH3 = innerDiv?.selectFirst("div.title h3, div.title h4")?.text()?.trim() ?: ""
             if (sectionH3.isNotEmpty()) {
-                extractedNodes.add(GuideNode.SectionHeader(sectionH3))
+                extractedNodes.add(GuideNode.SectionHeader(sectionH3, sectionAnchor))
             }
 
             // Trophy sections: each trophy is a div.box.section-holder containing table.zebra
@@ -143,6 +145,7 @@ object GuideRepository {
                     completionRate = completionRate,
                     rarityText = rarityText,
                     isEarned = isEarned,
+                    anchorId = sectionAnchor,
                     details = details
                 ))
                 isTrophyGroup = true
@@ -158,7 +161,7 @@ object GuideRepository {
                     val frView = step.selectFirst(".fr-view, .step-original") ?: continue
                     val stageH1 = frView.selectFirst("h1")
                     if (stageH1 != null) {
-                        extractedNodes.add(GuideNode.SectionHeader(stageH1.text().trim()))
+                        extractedNodes.add(GuideNode.SectionHeader(stageH1.text().trim(), sectionAnchor))
                         stageH1.remove()
                     }
                     val currentDetails = mutableListOf<GuideNode>()
@@ -226,7 +229,7 @@ object GuideRepository {
                         categories.add(GuideNode.CategoryGroup(catName, catColor, trophies))
                     }
                 }
-                extractedNodes.add(GuideNode.GuideInfoBox(stats, categories))
+                extractedNodes.add(GuideNode.GuideInfoBox(stats, categories, sectionAnchor))
                 continue
             }
 
@@ -257,10 +260,10 @@ object GuideRepository {
             }
         }
 
-        fun traverse(node: Node, isBoldCtx: Boolean = false, isItalicCtx: Boolean = false) {
+        fun traverse(node: Node, isBoldCtx: Boolean = false, isItalicCtx: Boolean = false, linkAnchor: String? = null) {
             if (node is TextNode) {
                 val txt = node.text()
-                if (txt.isNotEmpty()) currentSpans.add(TextSpan(txt, isBoldCtx, isItalicCtx))
+                if (txt.isNotEmpty()) currentSpans.add(TextSpan(txt, isBoldCtx, isItalicCtx, linkAnchor))
             } else if (node is Element) {
                 val tag = node.tagName().lowercase()
 
@@ -291,12 +294,18 @@ object GuideRepository {
                     return
                 }
 
+                if (node.hasClass("lazyYT") && node.hasAttr("data-youtube-id")) {
+                    flushSpans()
+                    list.add(GuideNode.YouTubeNode(node.attr("data-youtube-id")))
+                    return
+                }
+
                 when (tag) {
                     "br", "p", "div", "li", "td", "tr", "table", "h1", "h2", "h3", "h4", "h5", "ul", "ol" -> {
                         flushSpans()
                         val bold = isBoldCtx || tag == "b" || tag == "strong" || tag.startsWith("h")
                         val italic = isItalicCtx || tag == "i" || tag == "em"
-                        node.childNodes().forEach { traverse(it, bold, italic) }
+                        node.childNodes().forEach { traverse(it, bold, italic, linkAnchor) }
                         flushSpans()
                     }
                     "span" -> {
@@ -316,14 +325,14 @@ object GuideRepository {
                         } else {
                             val bold = isBoldCtx || node.hasClass("bold")
                             val italic = isItalicCtx || node.hasClass("italic")
-                            node.childNodes().forEach { traverse(it, bold, italic) }
+                            node.childNodes().forEach { traverse(it, bold, italic, linkAnchor) }
                         }
                     }
                     "img" -> {
                         if (node.hasClass("input") || node.hasClass("icon-sprite")) {
                             val altText = node.attr("alt")
                             if (altText.isNotEmpty()) {
-                                currentSpans.add(TextSpan("[$altText]", isBoldCtx, isItalicCtx))
+                                currentSpans.add(TextSpan("[$altText]", isBoldCtx, isItalicCtx, linkAnchor))
                             }
                         } else {
                             flushSpans()
@@ -342,6 +351,13 @@ object GuideRepository {
                         if (src.contains("youtube.com/embed/")) {
                             list.add(GuideNode.YouTubeNode(src.substringAfterLast("/").substringBefore("?")))
                         }
+                    }
+                    "a" -> {
+                        val href = node.attr("href")
+                        val aAnchor = if (href.contains("#")) href.substringAfterLast("#") else linkAnchor
+                        val bold = isBoldCtx || node.hasClass("bold")
+                        val italic = isItalicCtx || node.hasClass("italic")
+                        node.childNodes().forEach { traverse(it, bold, italic, aAnchor) }
                     }
                     else -> {
                         val bold = isBoldCtx || tag == "b" || tag == "strong"

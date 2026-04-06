@@ -1,5 +1,7 @@
 package components
 
+import androidx.compose.foundation.text.ClickableText
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -204,20 +208,31 @@ fun StaticGuideNode(node: GuideNode, onAnchorClick: (String) -> Unit) {
             if (node.spans.isNotEmpty()) {
                 val annotatedString = buildAnnotatedString {
                     for (span in node.spans) {
+                        pushStringAnnotation(tag = "URL", annotation = span.linkAnchor ?: "")
                         withStyle(
                             style = SpanStyle(
                                 fontWeight = if (span.isBold) FontWeight.Bold else null,
-                                fontStyle = if (span.isItalic) FontStyle.Italic else null
+                                fontStyle = if (span.isItalic) FontStyle.Italic else null,
+                                color = if (span.linkAnchor != null) MaterialTheme.colors.primary else Color.Unspecified,
+                                textDecoration = if (span.linkAnchor != null) TextDecoration.Underline else null
                             )
                         ) {
                             append(span.text)
                         }
+                        pop()
                     }
                 }
-                Text(
+                ClickableText(
                     text = annotatedString,
-                    style = if (node.isHeader) MaterialTheme.typography.h6 else MaterialTheme.typography.body1,
-                    modifier = Modifier.padding(bottom = 6.dp).fillMaxWidth()
+                    style = if (node.isHeader) MaterialTheme.typography.h6 else MaterialTheme.typography.body1.copy(color = MaterialTheme.colors.onSurface),
+                    modifier = Modifier.padding(bottom = 6.dp).fillMaxWidth(),
+                    onClick = { offset ->
+                        annotatedString.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { annotation ->
+                            if (annotation.item.isNotEmpty()) {
+                                onAnchorClick(annotation.item)
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -230,12 +245,44 @@ fun StaticGuideNode(node: GuideNode, onAnchorClick: (String) -> Unit) {
             )
         }
         is GuideNode.YouTubeNode -> {
-            Text(
-                text = "▶ Video: youtube.com/watch?v=${node.videoId}",
-                style = MaterialTheme.typography.body2,
-                color = MaterialTheme.colors.primary,
-                modifier = Modifier.padding(vertical = 6.dp)
-            )
+            val uriHandler = LocalUriHandler.current
+            val thumbnailUrl = "https://img.youtube.com/vi/${node.videoId}/maxresdefault.jpg"
+            androidx.compose.material.Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .padding(vertical = 6.dp)
+                    .clickable {
+                        uriHandler.openUri("https://www.youtube.com/watch?v=${node.videoId}")
+                    },
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                elevation = 2.dp
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    KamelImage(
+                        resource = asyncPainterResource(data = thumbnailUrl),
+                        contentDescription = "YouTube Thumbnail",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        onFailure = { Text("Failed to load video thumbnail") }
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.3f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .background(Color.Red, androidx.compose.foundation.shape.CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("▶", color = Color.White, style = MaterialTheme.typography.h5, modifier = Modifier.offset(x = 2.dp))
+                        }
+                    }
+                }
+            }
         }
         is GuideNode.TagNode -> {
             val parsedColor = try { Color(node.colorHex.removePrefix("#").toLong(16) or 0xFF000000) } catch (e: Exception) { Color.DarkGray }
