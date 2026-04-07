@@ -22,6 +22,10 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import components.renderGuideNodes
 import components.SystemAppearance
+import io.kamel.image.KamelImage
+import io.kamel.image.asyncPainterResource
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.clickable
 import kotlinx.coroutines.launch
 import repository.GuideNode
 import repository.GuideRepository
@@ -37,6 +41,7 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
         val listState = rememberLazyListState()
         val coroutineScope = rememberCoroutineScope()
         var isRefreshing by remember { mutableStateOf(false) }
+        var fullscreenImageUrl by remember { mutableStateOf<String?>(null) }
 
         SystemAppearance(MaterialTheme.colors.primary)
         
@@ -204,9 +209,11 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
                         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                         contentPadding = PaddingValues(vertical = 12.dp)
                     ) {
-                        renderGuideNodes(filteredNodes) { anchor ->
-                            performScroll(anchor)
-                        }
+                        renderGuideNodes(
+                            nodes = filteredNodes, 
+                            onAnchorClick = { anchor -> performScroll(anchor) },
+                            onImageClick = { url -> fullscreenImageUrl = url }
+                        )
                     }
 
                     // Floating scroll to top button
@@ -232,6 +239,34 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
             state = pullRefreshState,
             modifier = Modifier.align(Alignment.TopCenter)
         )
+
+        // Fullscreen Image Overlay (Lightbox)
+        if (fullscreenImageUrl != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.95f))
+                    .clickable { fullscreenImageUrl = null },
+                contentAlignment = Alignment.Center
+            ) {
+                KamelImage(
+                    resource = asyncPainterResource(data = fullscreenImageUrl!!),
+                    contentDescription = "Fullscreen View",
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    contentScale = ContentScale.Fit,
+                    onFailure = { Text("Failed to load full image", color = Color.White) },
+                    onLoading = { CircularProgressIndicator(color = Color.White) }
+                )
+                
+                // Close indicator hint
+                Text(
+                    text = "Tap to close",
+                    color = Color.White.copy(alpha = 0.5f),
+                    style = MaterialTheme.typography.overline,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp)
+                )
+            }
+        }
     }
     }
 }
