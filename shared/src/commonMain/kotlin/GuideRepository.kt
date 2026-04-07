@@ -42,7 +42,12 @@ sealed class GuideNode {
 
     data class RoadmapTrophy(val name: String, val desc: String, val rarityLabel: String, val anchor: String, val isEarned: Boolean)
     data class RoadmapGrid(val trophies: List<RoadmapTrophy>) : GuideNode()
-    data class TableCell(val content: List<GuideNode>, val widthPercent: Int?)
+    data class TableCell(
+        val content: List<GuideNode>,
+        val widthPercent: Int? = null,
+        val isIconOnly: Boolean = false,
+        val colSpan: Int = 1
+    )
     data class Table(val rows: List<List<TableCell>>, val isInvisible: Boolean) : GuideNode()
     data class GuideTitle(val title: String) : GuideNode()
 }
@@ -99,7 +104,7 @@ object GuideRepository {
             }
 
             // Trophy sections: each trophy is a div.box.section-holder containing table.zebra
-            var isTrophyGroup = false
+            var activeTrophyDetails: MutableList<GuideNode>? = null
             val trophyBoxes = innerDiv?.select("div.box.section-holder") ?: emptyList()
             for (box in trophyBoxes) {
                 val zebraTable = box.selectFirst("table.zebra") ?: continue
@@ -151,9 +156,8 @@ object GuideRepository {
                     anchorId = sectionAnchor,
                     details = details
                 ))
-                isTrophyGroup = true
+                activeTrophyDetails = details
             }
-            if (isTrophyGroup) continue@sectionLoop
 
             // Roadmap box: div.box.roadmap containing roadmapStep divs
             val roadmapBox = innerDiv?.selectFirst("div.box.roadmap")
@@ -233,21 +237,96 @@ object GuideRepository {
                     }
                 }
                 extractedNodes.add(GuideNode.GuideInfoBox(stats, categories, sectionAnchor))
-                continue
             }
 
             // Generic text sections (Tips & Strategies, etc.)
-            val textBoxes = innerDiv?.select("div.box:not(.section-holder):not(.roadmap)") ?: emptyList()
+            // Find all potential boxes, but filter for "Top-Level" ones to avoid duplication
+            val allCandidates = innerDiv?.select("div.box:not(.section-holder):not(.roadmap)") ?: emptyList()
+            val textBoxes = allCandidates.filter { box ->
+                box.selectFirst("span.tag .typo-top") == null &&
+                box.parents().none { it.hasClass("box") && it in allCandidates }
+            }
+            
             for (box in textBoxes) {
                 val details = mutableListOf<GuideNode>()
                 parseNestedParagraphs(box, details, "")
                 if (details.isNotEmpty()) {
-                    extractedNodes.add(GuideNode.GenericBox(details))
+                    val active = activeTrophyDetails
+                    if (active != null) {
+                        active.addAll(details)
+                    } else {
+                        extractedNodes.add(GuideNode.GenericBox(details))
+                    }
                 }
             }
         }
 
-        return extractedNodes
+        return mergeAdjacentTables(extractedNodes)
+    }
+
+    private fun mergeAdjacentTables(nodes: List<GuideNode>): List<GuideNode> {
+        if (nodes.size < 2) return nodes
+        val result = mutableListOf<GuideNode>()
+        var pendingTable: GuideNode.Table? = null
+
+        fun stripEmptyColumns(table: GuideNode.Table): GuideNode.Table {
+            val rows = table.rows
+            if (rows.isEmpty()) return table
+            val colCount = rows.maxOf { it.size }
+            val emptyColIndices = mutableListOf<Int>()
+            
+            for (j in 0 until colCount) {
+                val isColEffectivelyEmpty = rows.all { row ->
+                    val cell = row.getOrNull(j)
+                    cell == null || isCellEffectivelyEmpty(cell)
+                }
+                if (isColEffectivelyEmpty) emptyColIndices.add(j)
+            }
+            
+            if (emptyColIndices.isEmpty()) return table
+            
+            val newRows = rows.map { row ->
+                row.filterIndexed { index, _ -> index !in emptyColIndices }
+            }.filter { it.isNotEmpty() }
+            
+            return table.copy(rows = newRows)
+        }
+
+        for (node in nodes) {
+            if (node is GuideNode.Table) {
+                if (pendingTable == null) {
+                    pendingTable = node
+                } else {
+                    val pendingCols = pendingTable.rows.firstOrNull()?.size ?: 0
+                    val currentCols = node.rows.firstOrNull()?.size ?: 0
+                    if (pendingCols == currentCols && pendingCols > 0) {
+                        pendingTable = pendingTable.copy(rows = pendingTable.rows + node.rows)
+                    } else {
+                        result.add(stripEmptyColumns(pendingTable))
+                        pendingTable = node
+                    }
+                }
+            } else {
+                if (pendingTable != null) {
+                    result.add(stripEmptyColumns(pendingTable))
+                    pendingTable = null
+                }
+                result.add(node)
+            }
+        }
+        if (pendingTable != null) result.add(stripEmptyColumns(pendingTable))
+        return result
+    }
+
+    private fun isCellEffectivelyEmpty(cell: GuideNode.TableCell): Boolean {
+        if (cell.content.isEmpty()) return true
+        return cell.content.all { node ->
+            when (node) {
+                is GuideNode.Paragraph -> node.spans.isEmpty() || node.spans.all { it.text.isBlank() }
+                is GuideNode.Table -> node.rows.all { r -> r.all { isCellEffectivelyEmpty(it) } }
+                else -> false
+            }
+        }
     }
 
     private fun resolveUrl(url: String): String {
@@ -324,22 +403,67 @@ object GuideRepository {
                         flushSpans()
                         val rows = mutableListOf<List<GuideNode.TableCell>>()
                         val isInvisible = node.hasClass("invisible")
-                        node.select("tr").forEach { tr ->
+                        
+                        val trElements = mutableListOf<Element>()
+                        node.children().forEach { child ->
+                            if (child.tagName() == "tr") trElements.add(child)
+                            else if (child.tagName() in listOf("thead", "tbody", "tfoot")) {
+                                child.children().forEach { subChild ->
+                                    if (subChild.tagName() == "tr") trElements.add(subChild)
+                                }
+                            }
+                        }
+                        
+                        trElements.forEach { tr ->
                             val cells = mutableListOf<GuideNode.TableCell>()
-                            tr.select("th, td").forEach { cell ->
+                            tr.children().filter { it.tagName() in listOf("th", "td") }.forEach { cell ->
                                 val cellDetails = mutableListOf<GuideNode>()
                                 parseNestedParagraphs(cell, cellDetails, "")
                                 
                                 val style = cell.attr("style")
-                                val widthMatch = Regex("width:\\s*(\\d+)%").find(style)
-                                val widthPercent = widthMatch?.groupValues?.get(1)?.toIntOrNull()
+                                val widthMatch = Regex("width:\\s*([0-9.]+)?%").find(style)
+                                val widthPercent = widthMatch?.groupValues?.get(1)?.toDoubleOrNull()?.toInt()
+                                val colSpan = cell.attr("colspan").toIntOrNull() ?: 1
                                 
-                                cells.add(GuideNode.TableCell(cellDetails, widthPercent))
+                                val isIconOnly = cellDetails.size == 1 && cellDetails.first() is GuideNode.ImageNode
+                                cells.add(GuideNode.TableCell(cellDetails, widthPercent, isIconOnly, colSpan))
                             }
+                            
+                            // Colspan Header Extraction: If 1 cell spans multiple cols and contains a header
+                            if (cells.size == 1 && cells[0].colSpan > 1) {
+                                val hasHeader = cells[0].content.any { it is GuideNode.Paragraph && it.isHeader }
+                                if (hasHeader) {
+                                    list.addAll(cells[0].content)
+                                    return@forEach // Skip this row in the Table node
+                                }
+                            }
+                            
                             if (cells.isNotEmpty()) rows.add(cells)
                         }
-                        if (rows.isNotEmpty()) list.add(GuideNode.Table(rows, isInvisible))
-                        return 
+
+                        if (rows.isNotEmpty()) {
+                            val nonSpacerRows = rows.filter { r -> r.any { !isCellEffectivelyEmpty(it) } }
+                            
+                            // Advanced Header Detection: If 1 active row & only 1 active cell which is a header
+                            if (nonSpacerRows.size == 1) {
+                                val activeRow = nonSpacerRows[0]
+                                val activeCells = activeRow.filter { !isCellEffectivelyEmpty(it) }
+                                
+                                if (activeCells.size == 1) {
+                                    val firstContent = activeCells[0].content.firstOrNull()
+                                    if (firstContent is GuideNode.Paragraph && firstContent.isHeader) {
+                                        list.add(firstContent)
+                                        return
+                                    }
+                                }
+                            }
+                            
+                            // If table is entirely empty/spacers, skip it
+                            if (nonSpacerRows.isEmpty()) return
+
+                            list.add(GuideNode.Table(rows, isInvisible))
+                        }
+                        return
                     }
                     "span" -> {
                         if (node.hasClass("tag")) {
@@ -409,5 +533,10 @@ object GuideRepository {
             }
         }
         flushSpans()
+        
+        // Final pass to merge tables in this detail level
+        val originalDetails = list.toList()
+        list.clear()
+        list.addAll(mergeAdjacentTables(originalDetails))
     }
 }

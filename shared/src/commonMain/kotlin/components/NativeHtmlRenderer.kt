@@ -1,19 +1,17 @@
 package components
 
-import androidx.compose.foundation.text.ClickableText
-
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.Divider
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.material.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
@@ -169,38 +167,7 @@ fun LazyListScope.renderGuideNodes(nodes: List<GuideNode>, onAnchorClick: (Strin
             }
             is GuideNode.Table -> {
                 item {
-                    val backgroundColor = if (node.isInvisible) Color.Transparent else Color(0xFFF9F9F9)
-                    val borderColor = if (node.isInvisible) Color.Transparent else Color(0xFFEEEEEE)
-                    val elevation = if (node.isInvisible) 0.dp else 0.dp // matches card style
-                    
-                    androidx.compose.material.Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        elevation = elevation,
-                        backgroundColor = backgroundColor,
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-                        border = if (node.isInvisible) null else BorderStroke(1.dp, borderColor)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            node.rows.forEachIndexed { rowIndex, row ->
-                                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    row.forEachIndexed { cellIndex, cell ->
-                                        val weight = (cell.widthPercent?.toFloat() ?: 100f) / 100f
-                                        Column(
-                                            modifier = Modifier.weight(weight).padding(8.dp)
-                                        ) {
-                                            StaticGuideNodes(cell.content, onAnchorClick)
-                                        }
-                                        if (cellIndex < row.size - 1 && !node.isInvisible) {
-                                            Box(modifier = Modifier.width(1.dp).height(intrinsicSize = IntrinsicSize.Max).background(Color(0xFFEEEEEE)))
-                                        }
-                                    }
-                                }
-                                if (rowIndex < node.rows.size - 1 && !node.isInvisible) {
-                                    Divider(color = Color(0xFFEEEEEE), thickness = 1.dp)
-                                }
-                            }
-                        }
-                    }
+                    RenderTable(node, onAnchorClick)
                 }
             }
             is GuideNode.GenericBox -> {
@@ -401,38 +368,114 @@ fun StaticGuideNode(node: GuideNode, onAnchorClick: (String) -> Unit) {
             }
         }
         is GuideNode.Table -> {
-            val backgroundColor = if (node.isInvisible) Color.Transparent else Color(0xFFF9F9F9)
-            val borderColor = if (node.isInvisible) Color.Transparent else Color(0xFFEEEEEE)
-            
-            androidx.compose.material.Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                elevation = 0.dp,
-                backgroundColor = backgroundColor,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-                border = if (node.isInvisible) null else BorderStroke(1.dp, borderColor)
+            RenderTable(node, onAnchorClick)
+        }
+        else -> {}
+    }
+}
+
+@Composable
+private fun RenderTable(node: GuideNode.Table, onAnchorClick: (String) -> Unit) {
+    val backgroundColor = if (node.isInvisible) Color.Transparent else Color(0xFFF9F9F9)
+    val borderColor = if (node.isInvisible) Color.Transparent else Color(0xFFEEEEEE)
+    val scrollState = rememberScrollState()
+    val firstRow = node.rows.firstOrNull()
+    val totalPercent = firstRow?.sumOf { it.widthPercent ?: 0 } ?: 0
+    val useWeightLayout = (totalPercent in 80..110) || (firstRow?.size ?: 0) <= 3
+    val isScrollable = !useWeightLayout && (firstRow?.size ?: 0) > 3
+
+    // Master Weight Template (from the first row that has the most columns)
+    val maxRowCols = node.rows.maxOfOrNull { it.size } ?: 0
+    val templateRow = node.rows.find { it.size == maxRowCols && it.any { it.widthPercent != null } } 
+        ?: node.rows.find { it.size == maxRowCols }
+    val masterWeights = templateRow?.map { (it.widthPercent?.toFloat() ?: 10f) }
+
+    androidx.compose.material.Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        elevation = 0.dp,
+        backgroundColor = backgroundColor,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+        border = if (node.isInvisible) null else BorderStroke(1.dp, borderColor)
+    ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (isScrollable) Modifier.horizontalScroll(scrollState) else Modifier)
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    node.rows.forEachIndexed { rowIndex, row ->
-                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            row.forEachIndexed { cellIndex, cell ->
-                                val weight = (cell.widthPercent?.toFloat() ?: 100f) / 100f
-                                Column(
-                                    modifier = Modifier.weight(weight).padding(8.dp)
-                                ) {
-                                    StaticGuideNodes(cell.content, onAnchorClick)
+                node.rows.forEachIndexed { rowIndex, row ->
+                    Row(
+                        modifier = if (useWeightLayout) Modifier.fillMaxWidth() else Modifier.wrapContentWidth(),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        var templateIdx = 0
+                        row.forEachIndexed { cellIndex, cell ->
+                            val cellWeight: Float = if (useWeightLayout && masterWeights != null) {
+                                // Handle colspan by summing template weights
+                                var sum = 0f
+                                repeat(cell.colSpan) {
+                                    sum += masterWeights.getOrNull(templateIdx + it) ?: 10f
                                 }
-                                if (cellIndex < row.size - 1 && !node.isInvisible) {
-                                    Box(modifier = Modifier.width(1.dp).height(intrinsicSize = IntrinsicSize.Max).background(Color(0xFFEEEEEE)))
-                                }
+                                templateIdx += cell.colSpan
+                                sum
+                            } else {
+                                (cell.widthPercent?.toFloat() ?: 10f)
+                            }
+
+                            val cellModifier = when {
+                                useWeightLayout -> Modifier.weight(cellWeight.coerceAtLeast(1f))
+                                isScrollable -> Modifier.widthIn(min = 85.dp, max = 250.dp)
+                                else -> Modifier.weight(cellWeight.coerceAtLeast(1f))
+                            }
+
+                            Column(
+                                modifier = cellModifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                                horizontalAlignment = if (cell.isIconOnly) Alignment.CenterHorizontally else Alignment.Start
+                            ) {
+                                StaticGuideNodes(cell.content, onAnchorClick)
+                            }
+                            if (cellIndex < row.size - 1 && !node.isInvisible) {
+                                Box(modifier = Modifier.width(1.dp).height(intrinsicSize = IntrinsicSize.Max).background(Color(0xFFEEEEEE)))
                             }
                         }
-                        if (rowIndex < node.rows.size - 1 && !node.isInvisible) {
-                            Divider(color = Color(0xFFEEEEEE), thickness = 1.dp)
-                        }
+                    }
+                    if (rowIndex < node.rows.size - 1 && !node.isInvisible) {
+                        Divider(color = Color(0xFFEEEEEE), thickness = 1.dp)
                     }
                 }
             }
+            
+            // Shadows Indicators
+            if (isScrollable) {
+                // Right Shadow
+                if (scrollState.value < scrollState.maxValue - 10) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .width(30.dp)
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.15f))
+                                )
+                            )
+                    )
+                }
+                // Left Shadow
+                if (scrollState.value > 10) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .fillMaxHeight()
+                            .width(30.dp)
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(Color.Black.copy(alpha = 0.15f), Color.Transparent)
+                                )
+                            )
+                    )
+                }
+            }
         }
-        else -> {}
     }
 }
