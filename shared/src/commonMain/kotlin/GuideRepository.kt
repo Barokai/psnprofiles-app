@@ -97,6 +97,7 @@ object GuideRepository {
         sectionLoop@ for (section in sections) {
             // Section heading: comes from the direct child div's .title > h3
             val innerDiv = section.children().firstOrNull()
+            // sectionAnchor matches the href used in ToC links e.g. "2-roadmap", "5-i-watched-the-intro"
             val sectionAnchor = innerDiv?.id() ?: ""
             val sectionH3 = innerDiv?.selectFirst("div.title h3, div.title h4")?.text()?.trim() ?: ""
             if (sectionH3.isNotEmpty()) {
@@ -153,7 +154,7 @@ object GuideRepository {
                     completionRate = completionRate,
                     rarityText = rarityText,
                     isEarned = isEarned,
-                    anchorId = sectionAnchor,
+                    anchorId = sectionAnchor,  // matches ToC link e.g. "5-i-watched-the-intro"
                     details = details
                 ))
                 activeTrophyDetails = details
@@ -165,16 +166,41 @@ object GuideRepository {
                 val steps = roadmapBox.select("div[id^=roadmapStep]")
                 val stepTargets: List<Element> = if (steps.isEmpty()) listOf(roadmapBox) else steps.toList()
                 for (step in stepTargets) {
+                    val stepId = step.id()
                     val frView = step.selectFirst(".fr-view, .step-original") ?: continue
                     val stageH1 = frView.selectFirst("h1")
                     if (stageH1 != null) {
-                        extractedNodes.add(GuideNode.SectionHeader(stageH1.text().trim(), sectionAnchor))
+                        extractedNodes.add(GuideNode.SectionHeader(stageH1.text().trim(), stepId))
                         stageH1.remove()
                     }
                     val currentDetails = mutableListOf<GuideNode>()
                     parseNestedParagraphs(frView, currentDetails, "")
                     if (currentDetails.isNotEmpty()) {
                         extractedNodes.add(GuideNode.GenericBox(currentDetails))
+                    }
+
+                    // Roadmap Trophy Grid
+                    val roadmapTrophies = mutableListOf<GuideNode.RoadmapTrophy>()
+                    step.select("div.trophy").forEach { tDiv ->
+                        val aTitle = tDiv.selectFirst("a.title")
+                        val tLink = aTitle?.attr("href") ?: ""
+                        val tAnchor = if (tLink.contains("#")) tLink.substringAfterLast("#") else ""
+                        val tName = aTitle?.text()?.trim() ?: ""
+                        val tDesc = tDiv.selectFirst("span.small-info")?.text()?.trim() ?: ""
+                        val isEarned = tDiv.hasClass("earned")
+                        
+                        // Rarity from thumbnail filename
+                        val thumb = tDiv.selectFirst("img")?.attr("src") ?: ""
+                        val rarity = when {
+                            thumb.contains("platinum") -> "Platinum"
+                            thumb.contains("gold") -> "Gold"
+                            thumb.contains("silver") -> "Silver"
+                            else -> "Bronze"
+                        }
+                        roadmapTrophies.add(GuideNode.RoadmapTrophy(tName, tDesc, rarity, tAnchor, isEarned))
+                    }
+                    if (roadmapTrophies.isNotEmpty()) {
+                        extractedNodes.add(GuideNode.RoadmapGrid(roadmapTrophies))
                     }
                 }
                 continue

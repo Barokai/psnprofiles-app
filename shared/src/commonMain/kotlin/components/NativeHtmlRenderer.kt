@@ -309,9 +309,10 @@ private fun RenderTable(node: GuideNode.Table, onAnchorClick: (String) -> Unit, 
 
     // Master Weight Template (from the first row that has the most columns)
     val maxRowCols = node.rows.maxOfOrNull { it.size } ?: 0
+    val weightFloor = if (maxRowCols <= 2) 25f else 10f
     val templateRow = node.rows.find { it.size == maxRowCols && it.any { it.widthPercent != null } } 
         ?: node.rows.find { it.size == maxRowCols }
-    val masterWeights = templateRow?.map { (it.widthPercent?.toFloat() ?: 10f) }
+    val masterWeights = templateRow?.map { (it.widthPercent?.toFloat() ?: 20f).coerceAtLeast(weightFloor) }
 
     androidx.compose.material.Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),

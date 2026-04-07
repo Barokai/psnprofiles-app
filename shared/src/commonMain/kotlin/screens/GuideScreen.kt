@@ -118,19 +118,40 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
         val appBarTitle = docTitleNode?.title ?: "Native Trophy Guide"
         val tocNode = filteredNodes?.firstOrNull { it is GuideNode.TableOfContents } as? GuideNode.TableOfContents
 
+        // Extract the anchor that BELONGS to this node (not links inside it).
+        // RoadmapGrid/GuideInfoBox contain links to OTHER nodes — don't steal those.
+        fun extractAnchors(node: GuideNode): List<String> {
+            val anchors = mutableListOf<String>()
+            when (node) {
+                is GuideNode.TrophyGroup -> {
+                    if (node.anchorId.isNotEmpty()) anchors.add(node.anchorId)
+                    // details are genuine children of this card, recurse
+                    node.details.forEach { anchors.addAll(extractAnchors(it)) }
+                }
+                is GuideNode.SectionHeader -> {
+                    if (node.anchorId.isNotEmpty()) anchors.add(node.anchorId)
+                }
+                is GuideNode.GuideInfoBox -> {
+                    if (node.anchorId.isNotEmpty()) anchors.add(node.anchorId)
+                    // Do NOT recurse into categories.trophies — those are links to other nodes
+                }
+                is GuideNode.GenericBox -> {
+                    // GenericBox has no own anchor; recurse into children
+                    node.details.forEach { anchors.addAll(extractAnchors(it)) }
+                }
+                // RoadmapGrid, Table, etc. — do NOT register their internal links as own anchors
+                else -> {}
+            }
+            return anchors
+        }
+
         // Build a map: anchor -> lazy list index so roadmap cards can scroll to trophy sections
         val anchorIndexMap = remember(filteredNodes) {
             val map = mutableMapOf<String, Int>()
-            var idx = 0
-            filteredNodes?.forEach { node ->
-                if (node !is GuideNode.TableOfContents) {
-                    when (node) {
-                        is GuideNode.TrophyGroup -> if (!map.containsKey(node.anchorId)) map[node.anchorId] = idx
-                        is GuideNode.SectionHeader -> if (!map.containsKey(node.anchorId)) map[node.anchorId] = idx
-                        is GuideNode.GuideInfoBox -> if (!map.containsKey(node.anchorId)) map[node.anchorId] = idx
-                        else -> {}
-                    }
-                    idx++
+            filteredNodes?.forEachIndexed { idx, node ->
+                val nodeAnchors = extractAnchors(node)
+                nodeAnchors.forEach { anchor ->
+                    if (!map.containsKey(anchor)) map[anchor] = idx
                 }
             }
             map
