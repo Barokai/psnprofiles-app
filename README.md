@@ -24,6 +24,13 @@ To run the project locally on your Android device or emulator:
 ./gradlew installDebug
 ```
 
+> **Note for developers**: Do **not** commit `org.gradle.java.home` to `gradle.properties`.
+> If you need to pin a specific local JDK, set it in your personal `~/.gradle/gradle.properties` file instead:
+> ```properties
+> org.gradle.java.home=/path/to/your/local/jdk
+> ```
+> This keeps machine-specific paths out of version control and prevents CI failures.
+
 ### CI/CD Pipeline
 - **Automated Builds**: Every push to `main` and all Pull Requests automatically build a debug APK.
 - **GitHub Artifacts**: Download the latest build from the "Actions" tab.
