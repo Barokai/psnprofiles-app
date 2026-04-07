@@ -57,9 +57,9 @@ fun LazyListScope.renderGuideNodes(nodes: List<GuideNode>, onAnchorClick: (Strin
                     androidx.compose.material.Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         elevation = 4.dp,
-                        backgroundColor = Color.White,
+                        backgroundColor = if (node.isEarned) Color(0xFFE8F5E9) else Color.White,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+                        border = BorderStroke(1.dp, if (node.isEarned) Color(0xFFC8E6C9) else Color(0xFFEEEEEE))
                     ) {
                         Column {
                             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -69,8 +69,10 @@ fun LazyListScope.renderGuideNodes(nodes: List<GuideNode>, onAnchorClick: (Strin
                                     modifier = Modifier.size(64.dp).padding(end = 16.dp).clickable { onImageClick(node.img) }
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = node.name, style = MaterialTheme.typography.h6, color = MaterialTheme.colors.primary)
-                                    Text(text = node.description, style = MaterialTheme.typography.body2, color = Color.Gray)
+                                    val txtColor = if (node.isEarned) Color(0xFF2E7D32) else MaterialTheme.colors.primary
+                                    val txtStyle = if (node.isEarned) TextDecoration.LineThrough else null
+                                    Text(text = node.name, style = MaterialTheme.typography.h6.copy(textDecoration = txtStyle), color = txtColor)
+                                    Text(text = node.description, style = MaterialTheme.typography.body2, color = if (node.isEarned) Color(0xFF43A047) else Color.Gray)
                                 }
                                 val rColor = when (node.rarity) {
                                     "Platinum" -> Color(0xFF546E7A)
@@ -273,7 +275,9 @@ fun StaticGuideNode(node: GuideNode, onAnchorClick: (String) -> Unit, onImageCli
                             androidx.compose.material.Card(
                                 modifier = Modifier.weight(1f).padding(4.dp).clickable { onAnchorClick(t.anchor) },
                                 elevation = 2.dp,
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                                backgroundColor = if (t.isEarned) Color(0xFFE8F5E9) else Color.White,
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                                border = if (t.isEarned) BorderStroke(1.dp, Color(0xFFC8E6C9)) else null
                             ) {
                                 Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Box(modifier = Modifier.size(12.dp).background(rColor, shape = CircleShape))

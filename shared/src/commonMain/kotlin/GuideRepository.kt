@@ -168,6 +168,10 @@ object GuideRepository {
                 for (step in stepTargets) {
                     val stepId = step.id()
                     val frView = step.selectFirst(".fr-view, .step-original") ?: continue
+                    
+                    // Hide the trophy list within frView to prevent duplication (as we extract it natively below)
+                    frView.select("div.roadmap-intended-trophies, div.trophy").forEach { it.remove() }
+
                     val stageH1 = frView.selectFirst("h1")
                     if (stageH1 != null) {
                         extractedNodes.add(GuideNode.SectionHeader(stageH1.text().trim(), stepId))
