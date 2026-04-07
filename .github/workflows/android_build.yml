@@ -42,7 +42,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: psnprofiles-app-debug
-          path: androidApp/build/outputs/apk/debug/androidApp-debug.apk
+          path: androidApp/build/outputs/apk/debug/*.apk
 
   release:
     name: Create GitHub Release
@@ -68,7 +68,7 @@ jobs:
         with:
           tag_name: v${{ github.event.inputs.release_version }}
           name: Release v${{ github.event.inputs.release_version }}
-          files: androidApp-debug.apk
+          files: "*.apk"
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
