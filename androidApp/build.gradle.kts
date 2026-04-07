@@ -25,8 +25,8 @@ android {
         applicationId = "com.psnp.app"
         minSdk = (findProperty("android.minSdk") as String).toInt()
         targetSdk = (findProperty("android.targetSdk") as String).toInt()
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = (findProperty("app.versionCode") as? String)?.toInt() ?: 1
+        versionName = (findProperty("app.versionName") as? String) ?: "1.0.0"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
