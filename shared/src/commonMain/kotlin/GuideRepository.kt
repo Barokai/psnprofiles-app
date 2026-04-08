@@ -163,49 +163,35 @@ object GuideRepository {
             // Roadmap box: div.box.roadmap containing roadmapStep divs
             val roadmapBox = innerDiv?.selectFirst("div.box.roadmap")
             if (roadmapBox != null) {
-                val steps = roadmapBox.select("div[id^=roadmapStep]")
-                val stepTargets: List<Element> = if (steps.isEmpty()) listOf(roadmapBox) else steps.toList()
-                for (step in stepTargets) {
-                    val stepId = step.id()
-                    val frView = step.selectFirst(".fr-view, .step-original") ?: continue
-                    
-                    // Hide the trophy list within frView to prevent duplication (as we extract it natively below)
-                    frView.select("div.roadmap-intended-trophies, div.trophy").forEach { it.remove() }
-
-                    val stageH1 = frView.selectFirst("h1")
-                    if (stageH1 != null) {
-                        extractedNodes.add(GuideNode.SectionHeader(stageH1.text().trim(), stepId))
-                        stageH1.remove()
-                    }
-                    val currentDetails = mutableListOf<GuideNode>()
-                    parseNestedParagraphs(frView, currentDetails, "")
-                    if (currentDetails.isNotEmpty()) {
-                        extractedNodes.add(GuideNode.GenericBox(currentDetails))
-                    }
-
-                    // Roadmap Trophy Grid
-                    val roadmapTrophies = mutableListOf<GuideNode.RoadmapTrophy>()
-                    step.select("div.trophy").forEach { tDiv ->
-                        val aTitle = tDiv.selectFirst("a.title")
-                        val tLink = aTitle?.attr("href") ?: ""
-                        val tAnchor = if (tLink.contains("#")) tLink.substringAfterLast("#") else ""
-                        val tName = aTitle?.text()?.trim() ?: ""
-                        val tDesc = tDiv.selectFirst("span.small-info")?.text()?.trim() ?: ""
-                        val isEarned = tDiv.hasClass("earned")
+                // Parse everything inside the roadmap box cohesively. 
+                // This preserves natural order of text and trophy grids,
+                // and correctly captures intro text that isn't in a "step" div.
+                val roadmapDetails = mutableListOf<GuideNode>()
+                
+                // Identify if it has steps or is flat. 
+                // We use :not(#roadmapSteps) to avoid picking up the parent container which would cause double-parsing.
+                val steps = roadmapBox.select("div[id^=roadmapStep]:not(#roadmapSteps)")
+                if (steps.isNotEmpty()) {
+                    for (step in steps) {
+                        val stepId = step.id()
+                        val frView = step.selectFirst(".fr-view, .step-original")
                         
-                        // Rarity from thumbnail filename
-                        val thumb = tDiv.selectFirst("img")?.attr("src") ?: ""
-                        val rarity = when {
-                            thumb.contains("platinum") -> "Platinum"
-                            thumb.contains("gold") -> "Gold"
-                            thumb.contains("silver") -> "Silver"
-                            else -> "Bronze"
+                        // Stage header extraction (e.g. Stage 1)
+                        val stageH1 = frView?.selectFirst("h1") ?: step.selectFirst("h1")
+                        if (stageH1 != null) {
+                            roadmapDetails.add(GuideNode.SectionHeader(stageH1.text().trim(), stepId))
+                            stageH1.remove() // Don't parse it twice
                         }
-                        roadmapTrophies.add(GuideNode.RoadmapTrophy(tName, tDesc, rarity, tAnchor, isEarned))
+                        
+                        // Parse step content (text + grids)
+                        parseNestedParagraphs(step, roadmapDetails, "")
                     }
-                    if (roadmapTrophies.isNotEmpty()) {
-                        extractedNodes.add(GuideNode.RoadmapGrid(roadmapTrophies))
-                    }
+                } else {
+                    parseNestedParagraphs(roadmapBox, roadmapDetails, "")
+                }
+
+                if (roadmapDetails.isNotEmpty()) {
+                    extractedNodes.addAll(roadmapDetails)
                 }
                 continue
             }

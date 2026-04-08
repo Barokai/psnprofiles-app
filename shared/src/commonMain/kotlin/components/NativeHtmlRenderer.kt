@@ -24,6 +24,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.kamel.image.KamelImage
 import io.kamel.image.asyncPainterResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import repository.GuideNode
 
 fun LazyListScope.renderGuideNodes(nodes: List<GuideNode>, onAnchorClick: (String) -> Unit, onImageClick: (String) -> Unit) {
@@ -243,12 +245,30 @@ fun StaticGuideNode(node: GuideNode, onAnchorClick: (String) -> Unit, onImageCli
             )
         }
         is GuideNode.YouTubeNode -> {
-            KamelImage(
-                resource = asyncPainterResource(data = "https://img.youtube.com/vi/${node.videoId}/0.jpg"),
-                contentDescription = "YouTube Thumbnail",
+            Box(
                 modifier = Modifier.fillMaxWidth().aspectRatio(16/9f).padding(vertical = 8.dp).clickable { onAnchorClick("https://www.youtube.com/watch?v=${node.videoId}") },
-                contentScale = ContentScale.Crop
-            )
+                contentAlignment = Alignment.Center
+            ) {
+                KamelImage(
+                    resource = asyncPainterResource(data = "https://img.youtube.com/vi/${node.videoId}/0.jpg"),
+                    contentDescription = "YouTube Thumbnail",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                // Play Button Overlay
+                Surface(
+                    color = Color.Black.copy(alpha = 0.6f),
+                    shape = CircleShape,
+                    modifier = Modifier.size(64.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Play Video",
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp).padding(8.dp)
+                    )
+                }
+            }
         }
         is GuideNode.TagNode -> {
             Box(

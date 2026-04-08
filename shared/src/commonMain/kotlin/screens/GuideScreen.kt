@@ -157,10 +157,15 @@ class GuideScreen(val guideUrl: String, val earnedTrophyNames: List<String>) : S
             map
         }
 
+        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
         val performScroll: (String) -> Unit = { anchor ->
-            val targetIdx = anchorIndexMap[anchor]
-            if (targetIdx != null) {
-                coroutineScope.launch { listState.animateScrollToItem(targetIdx) }
+            if (anchor.startsWith("http")) {
+                uriHandler.openUri(anchor)
+            } else {
+                val targetIdx = anchorIndexMap[anchor]
+                if (targetIdx != null) {
+                    coroutineScope.launch { listState.animateScrollToItem(targetIdx) }
+                }
             }
         }
 
