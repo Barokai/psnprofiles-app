@@ -26,7 +26,7 @@ kotlin {
                 implementation(compose.material)
                 @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
                 implementation(compose.components.resources)
-                implementation("io.ktor:ktor-client-core:2.3.11")
+                implementation("io.ktor:ktor-client-core:2.3.13")
                 implementation("com.fleeksoft.ksoup:ksoup:0.1.2")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
                 implementation("cafe.adriel.voyager:voyager-navigator:1.0.0")
@@ -40,7 +40,7 @@ kotlin {
                 api("androidx.activity:activity-compose:1.7.2")
                 api("androidx.appcompat:appcompat:1.6.1")
                 api("androidx.core:core-ktx:1.10.1")
-                implementation("io.ktor:ktor-client-okhttp:2.3.11")
+                implementation("io.ktor:ktor-client-okhttp:2.3.13")
             }
         }
         val iosX64Main by getting
@@ -52,7 +52,7 @@ kotlin {
             iosArm64Main.dependsOn(this)
             iosSimulatorArm64Main.dependsOn(this)
             dependencies {
-                implementation("io.ktor:ktor-client-darwin:2.3.11")
+                implementation("io.ktor:ktor-client-darwin:2.3.13")
             }
         }
     }
