@@ -32,7 +32,7 @@ kotlin {
                 implementation("cafe.adriel.voyager:voyager-navigator:1.0.1")
                 implementation("com.russhwolf:multiplatform-settings:1.1.1")
                 implementation("com.russhwolf:multiplatform-settings-no-arg:1.1.1")
-                implementation("media.kamel:kamel-image:0.8.3")
+                implementation("media.kamel:kamel-image:0.9.5")
             }
         }
         val androidMain by getting {
