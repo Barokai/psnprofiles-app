@@ -11,35 +11,45 @@
     {
       "description": "Group all Ktor modules — monorepo, must stay in sync",
       "groupName": "Ktor",
-      "matchPackagePrefixes": ["io.ktor:"]
+      "matchPackageNames": [
+        "io.ktor:{/,}**"
+      ]
     },
     {
       "description": "Group Kotlin stdlib, compiler and KotlinX libraries",
       "groupName": "Kotlin & KotlinX",
-      "matchPackagePrefixes": [
-        "org.jetbrains.kotlin",
-        "org.jetbrains.kotlinx"
+      "matchPackageNames": [
+        "org.jetbrains.kotlin{/,}**",
+        "org.jetbrains.kotlinx{/,}**"
       ]
     },
     {
       "description": "Group Compose Multiplatform runtime and components",
       "groupName": "Compose Multiplatform",
-      "matchPackagePrefixes": ["org.jetbrains.compose"]
+      "matchPackageNames": [
+        "org.jetbrains.compose{/,}**"
+      ]
     },
     {
       "description": "Group AndroidX libraries",
       "groupName": "AndroidX",
-      "matchPackagePrefixes": ["androidx."]
+      "matchPackageNames": [
+        "androidx.{/,}**"
+      ]
     },
     {
       "description": "Group Voyager navigation modules",
       "groupName": "Voyager",
-      "matchPackagePrefixes": ["cafe.adriel.voyager:"]
+      "matchPackageNames": [
+        "cafe.adriel.voyager:{/,}**"
+      ]
     },
     {
       "description": "Group multiplatform-settings modules",
       "groupName": "Multiplatform Settings",
-      "matchPackagePrefixes": ["com.russhwolf:multiplatform-settings"]
+      "matchPackageNames": [
+        "com.russhwolf:multiplatform-settings{/,}**"
+      ]
     },
     {
       "description": "Group all GitHub Actions version updates",
