@@ -56,6 +56,13 @@
       "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions",
       "labels": ["dependencies", "github-actions"]
+    },
+    {
+      "description": "Pin ksoup to 0.1.x — 0.2.x requires Kotlin 2.3+ which is incompatible with the current Kotlin 1.9.21 baseline",
+      "matchPackageNames": [
+        "com.fleeksoft.ksoup:ksoup"
+      ],
+      "allowedVersions": "<0.2.0"
     }
   ]
 }
