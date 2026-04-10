@@ -36,7 +36,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew :androidApp:assembleDebug --stacktrace --warning-mode all
+        run: ./gradlew :androidApp:assembleDebug --stacktrace --warning-mode all 2>&1 | tee build-output.log; exit ${PIPESTATUS[0]}
 
       - name: Upload Problems Report
         if: failure()
@@ -57,7 +57,7 @@ jobs:
           fi
           echo "### Compiler Errors" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          grep -r "^e: " . --include="*.txt" 2>/dev/null | head -30 >> $GITHUB_STEP_SUMMARY || true
+          grep "^e: " build-output.log 2>/dev/null | head -30 >> $GITHUB_STEP_SUMMARY || true
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload APK Artifact
