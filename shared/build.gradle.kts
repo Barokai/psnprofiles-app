@@ -28,7 +28,7 @@ kotlin {
                 implementation(compose.components.resources)
                 implementation("io.ktor:ktor-client-core:2.3.13")
                 implementation("com.fleeksoft.ksoup:ksoup:0.1.2")
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
                 implementation("cafe.adriel.voyager:voyager-navigator:1.0.1")
                 implementation("com.russhwolf:multiplatform-settings:1.1.1")
                 implementation("com.russhwolf:multiplatform-settings-no-arg:1.1.1")
