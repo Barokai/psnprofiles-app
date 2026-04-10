@@ -34,7 +34,7 @@ class SettingsScreen : Screen {
 
         Column(Modifier.fillMaxWidth()) {
             TopAppBar(
-                title = { Text("PSNP+ Configure") },
+                title = { Text("PSNP Configure") },
                 navigationIcon = {
                     IconButton(onClick = { navigator?.pop() }) {
                         Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")

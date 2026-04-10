@@ -39,6 +39,8 @@ To run the project locally on your Android device or emulator:
   2. Select **Android Build & Release**.
   3. Click **Run workflow**, check **Create Release**, and enter a version number (e.g., `1.0.1`).
 
+> **Note on committed debug keystore**: `androidApp/debug.keystore` and the `signing.*` values in `gradle.properties` are **intentionally committed**. This ensures that a locally ADB-sideloaded build and a downloaded GitHub artifact share the same signing certificate, so Android treats them as the same app and allows seamless updates between the two — no reinstall required. The credentials are the standard Android debug defaults (`android` / `androiddebugkey`) and are not production secrets. A future improvement may add APK naming prefixes (e.g. `-debug.apk`) to make artifact identification clearer.
+
 ---
 
 ## 📸 Screenshots
@@ -57,5 +59,28 @@ To run the project locally on your Android device or emulator:
 
 ---
 
+## 🤖 Acknowledgements
+
+The majority of the implementation in this project was built with the assistance of AI models (primarily **Google Antigravity**), and a healthy dose of [GitHub Copilot](https://github.com/features/copilot) — the fine art of making things work through determined searching, caffeine, and trial and error. The architecture decisions, product direction, and all the glue holding it together are human-made.
+
+---
+
+## ⚠️ Disclaimer
+
+- **Fan project**: This app is an independent, fan-made tool and is **not affiliated with, endorsed by, or in any way officially connected to PSNProfiles** or Sony Interactive Entertainment.
+- **No official API**: The app retrieves data by parsing PSNProfiles web pages directly. There is no official PSNProfiles API in use. Users authenticate using their own session — no credentials are stored by this project.
+- **Terms of Service**: PSNProfiles' Terms of Service may restrict automated access to their platform. Use this app at your own risk. The authors accept no liability for account restrictions or other consequences arising from its use.
+- **All trademarks** (PlayStation, PSN, trophy icons, etc.) belong to their respective owners.
+
+### For Testers
+
+- Requires an active [PSNProfiles](https://psnprofiles.com) account and an internet connection.
+- Only **debug APKs** are produced — there is no production signing configuration and the app is not distributed via the Google Play Store.
+- Install via ADB (`./gradlew installDebug`) or by sideloading a downloaded GitHub artifact. Both use the same shared debug signing certificate and can update each other without reinstalling.
+- There is no automatic update mechanism — check the Actions tab for new builds.
+
+---
+
 ## ⚖ License
+
 Licensed under the Apache License, Version 2.0. See [LICENSE.txt](LICENSE.txt) for details.
