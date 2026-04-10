@@ -81,6 +81,12 @@ The majority of the implementation in this project was built with the assistance
 
 ---
 
+## 🤝 Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. For bugs and feature requests, use the [issue templates](.github/ISSUE_TEMPLATE/).
+
+---
+
 ## ⚖ License
 
 Licensed under the Apache License, Version 2.0. See [LICENSE.txt](LICENSE.txt) for details.
