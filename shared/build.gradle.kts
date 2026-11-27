@@ -30,8 +30,8 @@ kotlin {
                 implementation("com.fleeksoft.ksoup:ksoup:0.1.2")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
                 implementation("cafe.adriel.voyager:voyager-navigator:1.0.1")
-                implementation("com.russhwolf:multiplatform-settings:1.1.1")
-                implementation("com.russhwolf:multiplatform-settings-no-arg:1.1.1")
+                implementation("com.russhwolf:multiplatform-settings:1.3.0")
+                implementation("com.russhwolf:multiplatform-settings-no-arg:1.3.0")
                 implementation("media.kamel:kamel-image:0.9.5")
             }
         }
