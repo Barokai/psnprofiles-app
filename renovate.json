@@ -1,69 +1,53 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":semanticCommits",
-    "schedule:weekly"
-  ],
-  "prConcurrentLimit": 5,
+  "extends": ["config:recommended", ":semanticCommits", "schedule:monthly"],
+  "timezone": "Europe/Vienna",
   "labels": ["dependencies"],
+  "prConcurrentLimit": 3,
+  "minimumReleaseAge": "3 days",
   "packageRules": [
     {
-      "description": "Group all Ktor modules — monorepo, must stay in sync",
+      "description": "One PR for all routine library updates",
+      "groupName": "all non-major dependencies",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"]
+    },
+    {
+      "description": "Majors are only listed in the Dependency Dashboard until ticked there",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Ktor modules must stay in sync",
       "groupName": "Ktor",
-      "matchPackageNames": [
-        "io.ktor:{/,}**"
-      ]
+      "matchPackageNames": ["io.ktor{/,}**"]
     },
     {
-      "description": "Group Kotlin stdlib, compiler and KotlinX libraries",
-      "groupName": "Kotlin & KotlinX",
-      "matchPackageNames": [
-        "org.jetbrains.kotlin{/,}**",
-        "org.jetbrains.kotlinx{/,}**"
-      ]
-    },
-    {
-      "description": "Group Compose Multiplatform runtime and components",
-      "groupName": "Compose Multiplatform",
-      "matchPackageNames": [
-        "org.jetbrains.compose{/,}**"
-      ]
-    },
-    {
-      "description": "Group AndroidX libraries",
-      "groupName": "AndroidX",
-      "matchPackageNames": [
-        "androidx.{/,}**"
-      ]
-    },
-    {
-      "description": "Group Voyager navigation modules",
+      "description": "Voyager modules must stay in sync",
       "groupName": "Voyager",
-      "matchPackageNames": [
-        "cafe.adriel.voyager:{/,}**"
-      ]
+      "matchPackageNames": ["cafe.adriel.voyager{/,}**"]
     },
     {
-      "description": "Group multiplatform-settings modules",
-      "groupName": "Multiplatform Settings",
-      "matchPackageNames": [
-        "com.russhwolf:multiplatform-settings{/,}**"
-      ]
-    },
-    {
-      "description": "Group all GitHub Actions version updates",
-      "matchManagers": ["github-actions"],
+      "description": "GitHub Actions together",
       "groupName": "GitHub Actions",
-      "labels": ["dependencies", "github-actions"]
+      "matchManagers": ["github-actions"]
     },
     {
-      "description": "Pin ksoup to 0.1.x — 0.2.x requires Kotlin 2.3+ which is incompatible with the current Kotlin 1.9.21 baseline",
+      "description": "Toolchain and libraries that depend on it: one group, on approval until the upgrade in docs/PLAN.md is done. Remove dependencyDashboardApproval afterwards.",
+      "groupName": "Android and Kotlin toolchain",
       "matchPackageNames": [
-        "com.fleeksoft.ksoup:ksoup"
+        "org.jetbrains.kotlin**",
+        "org.jetbrains.compose**",
+        "com.android**",
+        "androidx.**",
+        "com.russhwolf:**",
+        "gradle"
       ],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "ksoup 0.2.x needs Kotlin 2.3+; remove this pin with the toolchain upgrade",
+      "matchPackageNames": ["com.fleeksoft.ksoup:ksoup"],
       "allowedVersions": "<0.2.0"
     }
   ]
 }
-

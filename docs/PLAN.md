@@ -29,11 +29,22 @@ What the failing PRs show:
 The build also warns that AGP 8.9.0 is "higher than the maximum known to the Kotlin Gradle Plugin", and that the
 `getting` delegates in `androidApp/build.gradle.kts` and `shared/build.gradle.kts` are deprecated in Gradle 9.6.
 
+## Target versions (looked up 2026-11-28, recheck before starting)
+
+| Component | Now | Latest stable |
+|---|---|---|
+| Kotlin | 1.9.21 | 2.4.21 |
+| Compose Multiplatform | 1.5.11 | 1.12.2 |
+| Android Gradle Plugin | 8.9.0 | 9.5.3 |
+| Gradle wrapper | 8.14.4 | 9.9.3 |
+
+Check the Kotlin/AGP/Gradle compatibility table before picking the final combination.
+
 ## Plan
 
 One branch that lifts the whole toolchain together; the Renovate PRs follow afterwards.
 
-1. **Kotlin 2.x** (current 2.3 line) with the **Compose compiler Gradle plugin** (`org.jetbrains.kotlin.plugin.compose`)
+1. **Kotlin 2.x** (see target versions) with the **Compose compiler Gradle plugin** (`org.jetbrains.kotlin.plugin.compose`)
    - required since Kotlin 2.0, so the Compose compiler is no longer configured through Compose Multiplatform
 2. **Compose Multiplatform** to a version that matches that Kotlin
 3. **AGP 9.x** (≥ 9.1 for current AndroidX). With AGP 9:
